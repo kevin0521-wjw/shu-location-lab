@@ -1,0 +1,1160 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>上海大学校园跑 · LOCATION LAB</title>
+<meta name="description" content="上海大学校园跑 LOCATION LAB —— 田径场环形跑路线的几何复现、轨迹沙盘、位置反算与坐标转换实验室。纯前端单文件，可直接打开或本地部署。">
+<meta name="theme-color" content="#080B10">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230C121A'/%3E%3Cellipse cx='16' cy='16' rx='11' ry='6.5' fill='none' stroke='%233FE0C0' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23FFC24B'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#070A0F; --bg2:#0B111A; --card:#0F1722; --card2:#121D2A;
+  --line:#1C2A39; --line2:#243546;
+  --ink:#E9F2F9; --ink2:#B9CAD8; --dim:#7A90A6; --dim2:#54697D;
+  --mint:#3FE0C0; --mint-d:#1E8E7B; --amber:#FFC24B; --rose:#FF5F7E; --blue:#59A9FF;
+  --mono:"JetBrains Mono","Cascadia Mono",Consolas,"Courier New",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+  --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:
+    radial-gradient(1100px 600px at 12% -8%,rgba(63,224,192,.10),transparent 60%),
+    radial-gradient(900px 500px at 92% 0%,rgba(89,169,255,.09),transparent 62%),
+    var(--bg);
+  color:var(--ink); font-family:var(--sans); font-size:14px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  display:flex; flex-direction:column; min-height:100vh;
+}
+::selection{background:rgba(63,224,192,.28)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line2);background:var(--card2);border-radius:10px;padding:8px 14px;transition:.16s}
+button:hover{border-color:var(--mint-d);background:#16232f}
+button:active{transform:translateY(1px)}
+button.primary{background:linear-gradient(180deg,#37D6B8,#22B79D);border-color:#2BC0A5;color:#05231D;font-weight:700;letter-spacing:.02em}
+button.primary:hover{filter:brightness(1.06)}
+button.ghost{background:transparent}
+input,select,textarea{background:#0A1119;border:1px solid var(--line2);border-radius:10px;padding:8px 11px;outline:none;transition:.16s}
+input:focus,select:focus,textarea:focus{border-color:var(--mint-d);box-shadow:0 0 0 3px rgba(63,224,192,.10)}
+textarea{resize:vertical;font-family:var(--mono);font-size:12.5px;line-height:1.7;width:100%}
+
+/* ---------- 顶栏 ---------- */
+header.top{
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  padding:11px 20px; border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(13,20,29,.92),rgba(7,10,15,.55));
+  backdrop-filter:blur(10px); position:sticky; top:0; z-index:20;
+}
+.brand{display:flex; align-items:center; gap:13px; min-width:0}
+.mark{
+  width:40px;height:40px;flex:none;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(150deg,#12202b,#0a121a); border:1px solid var(--line2);
+  box-shadow:inset 0 0 22px rgba(63,224,192,.14);
+}
+.mark svg{width:24px;height:24px}
+h1{font-size:17.5px;font-weight:750;letter-spacing:.01em;white-space:nowrap}
+h1 em{font-style:normal;color:var(--mint);font-family:var(--mono);font-size:14px;letter-spacing:.08em;margin-left:6px}
+.brand p{font-size:11.5px;color:var(--dim);letter-spacing:.04em}
+
+nav.tabs{display:flex;gap:4px;margin-left:auto;background:#0A1119;border:1px solid var(--line);border-radius:12px;padding:4px}
+nav.tabs button{background:transparent;border:1px solid transparent;border-radius:9px;padding:7px 15px;color:var(--ink2);font-size:13px}
+nav.tabs button.on{background:var(--card2);border-color:var(--line2);color:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.35)}
+.top-meta{display:flex;gap:14px;align-items:center;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+.dot-live{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 4px rgba(63,224,192,.14);margin-right:6px;vertical-align:1px}
+.dot-live.pulse{animation:pulse 1.9s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(63,224,192,.14)}50%{box-shadow:0 0 0 8px rgba(63,224,192,0)}}
+
+/* ---------- 主体 ---------- */
+main{flex:1;min-height:0;display:flex}
+.pane{display:none;width:100%;min-height:0}
+.pane.on{display:flex}
+
+/* 轨迹沙盘 */
+#pane-map{gap:14px;padding:12px 16px 10px;align-items:stretch}
+.stage{
+  position:relative;flex:1;min-width:0;border-radius:var(--r);overflow:hidden;
+  border:1px solid var(--line);background:
+    radial-gradient(closest-side at 50% 45%,#0E1822 0%,#080D13 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 18px 50px -30px #000;
+}
+#map{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+#map.drag{cursor:grabbing}
+.hud{position:absolute;inset:0;pointer-events:none;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+.hud .tag{
+  position:absolute;background:rgba(9,14,20,.78);border:1px solid var(--line2);border-radius:8px;
+  padding:5px 9px;letter-spacing:.03em;backdrop-filter:blur(6px);
+}
+.hud .tl{top:12px;left:12px}
+.hud .tr{top:12px;right:12px;pointer-events:auto}
+.hud .br{bottom:12px;right:12px;text-align:right}
+.hud .bl{bottom:12px;left:12px}
+.hud .legend{display:flex;gap:13px;align-items:center;flex-wrap:wrap}
+.hud .legend i{display:inline-block;width:15px;height:3px;border-radius:2px;margin-right:5px;vertical-align:3px}
+.hud .legend i.dot{width:8px;height:8px;border-radius:50%;vertical-align:0}
+.hud button{pointer-events:auto;background:rgba(9,14,20,.82);border:1px solid var(--line2);border-radius:8px;padding:4px 9px;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.hud button:hover{border-color:var(--mint-d);color:var(--ink)}
+.compass{width:38px;height:38px;display:block}
+
+/* 右侧面板 */
+.panel{width:392px;flex:none;display:flex;flex-direction:column;gap:10px;overflow:auto;padding-right:2px}
+.panel::-webkit-scrollbar,.tablewrap::-webkit-scrollbar{width:9px;height:9px}
+.panel::-webkit-scrollbar-thumb,.tablewrap::-webkit-scrollbar-thumb{background:#1C2A39;border-radius:9px}
+.card{background:linear-gradient(180deg,rgba(18,29,42,.9),rgba(15,23,34,.9));border:1px solid var(--line);border-radius:var(--r);padding:12px 13px}
+.card h2{font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--dim);text-transform:uppercase;margin-bottom:9px;display:flex;align-items:center;gap:8px}
+.card h2::before{content:"";width:3px;height:11px;border-radius:2px;background:var(--mint);opacity:.85}
+.row{display:flex;gap:8px;align-items:center}
+.row+.row{margin-top:8px}
+.row label{font-size:12.5px;color:var(--ink2);flex:none}
+.grow{flex:1;min-width:0}
+select{width:100%;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);background-position:calc(100% - 16px) 52%,calc(100% - 11px) 52%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:32px}
+
+.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;align-content:start}
+.kv .cell{background:#0A1119;border:1px solid var(--line);border-radius:10px;padding:6px 9px}
+.kv .k{font-size:10px;color:var(--dim2);letter-spacing:.08em;text-transform:uppercase}
+.kv .v{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--ink);margin-top:1px;font-variant-numeric:tabular-nums}
+.kv .v small{font-size:11px;color:var(--dim);font-weight:400;margin-left:2px}
+.kv .v.accent{color:var(--mint)}
+.kv .v.warn{color:var(--amber)}
+
+.bar{height:5px;border-radius:5px;background:#0A1119;border:1px solid var(--line);overflow:hidden;margin-top:11px}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2BC0A5,#3FE0C0);border-radius:5px;transition:width .1s linear}
+
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;padding:0;border:0;height:22px;width:100%}
+input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:5px;background:linear-gradient(90deg,#2BC0A5,#1F4B47)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:#EAF6F3;border:3px solid #2BC0A5;margin-top:-5px;box-shadow:0 0 0 3px rgba(43,192,165,.18)}
+input[type=range]:focus{box-shadow:none}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.hint{font-size:11.5px;color:var(--dim2);line-height:1.6}
+.hint b{color:var(--ink2);font-weight:600}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:11px;color:var(--ink2);background:#0A1119;border:1px solid var(--line2);border-radius:999px;padding:3px 9px}
+.chip.on{color:#05231D;background:var(--mint);border-color:var(--mint)}
+
+/* 位置反算 / 坐标转换 */
+#pane-check,#pane-geo{flex-direction:column;gap:16px;padding:18px;overflow:auto}
+.wide{width:100%;max-width:1240px;margin:0 auto;display:grid;gap:16px}
+.cols2{display:grid;grid-template-columns:minmax(320px,1fr) minmax(360px,1.25fr);gap:16px}
+@media(max-width:1000px){.cols2{grid-template-columns:1fr}}
+.tablewrap{overflow:auto;max-height:420px;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+th,td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{position:sticky;top:0;background:#0C141D;color:var(--dim);font-weight:600;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;text-align:right;z-index:1}
+th:first-child,td:first-child{text-align:left}
+tbody tr:hover{background:rgba(63,224,192,.045)}
+.ok{color:var(--mint)} .bad{color:var(--rose)} .mid{color:var(--amber)}
+.big{font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.sub{font-size:12px;color:var(--dim);margin-top:2px}
+footer{padding:10px 20px 12px;border-top:1px solid var(--line);color:var(--dim2);font-size:11.5px;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+footer .sep{color:var(--line2)}
+footer a{color:var(--dim);text-decoration:none;border-bottom:1px dotted var(--line2)}
+footer a:hover{color:var(--mint)}
+@media(max-width:1180px){
+  #pane-map{flex-direction:column}
+  .stage{min-height:56vh}
+  .panel{width:100%;flex-direction:row;flex-wrap:wrap;overflow:visible}
+  .panel .card{flex:1 1 300px}
+}
+@media(max-width:720px){
+  header.top{padding:12px 14px;gap:10px}
+  h1{font-size:15px} h1 em{display:none}
+  .brand p{display:none}
+  nav.tabs{margin-left:0;width:100%}
+  nav.tabs button{flex:1;padding:7px 8px;font-size:12px}
+  #pane-map{padding:12px}
+  .stage{min-height:48vh}
+  .kv{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <div class="mark">
+      <svg viewBox="0 0 32 32" fill="none"><ellipse cx="16" cy="16" rx="11.5" ry="6.6" stroke="#3FE0C0" stroke-width="1.8"/><ellipse cx="16" cy="16" rx="6.6" ry="3.2" stroke="#59A9FF" stroke-width="1.2" opacity=".8"/><circle cx="16" cy="16" r="2.1" fill="#FFC24B"/></svg>
+    </div>
+    <div>
+      <h1>上海大学校园跑<em>LOCATION LAB</em></h1>
+      <p>定位轨迹实验室 · GCJ02 · IAAF 400 m 几何复现</p>
+    </div>
+  </div>
+  <nav class="tabs">
+    <button data-tab="map" class="on">轨迹沙盘</button>
+    <button data-tab="check">位置反算</button>
+    <button data-tab="geo">坐标转换</button>
+  </nav>
+  <div class="top-meta">
+    <span><span class="dot-live pulse" id="liveDot"></span><span id="liveTxt">STANDBY</span></span>
+    <span id="topRoute">—</span>
+  </div>
+</header>
+
+<main>
+  <!-- ============ 轨迹沙盘 ============ -->
+  <section class="pane on" id="pane-map">
+    <div class="stage" id="stage">
+      <canvas id="map"></canvas>
+      <div class="hud">
+        <div class="tag tl">
+          <span class="legend">
+            <span><i style="background:#3FE0C0"></i>已跑路线</span>
+            <span><i style="background:rgba(63,224,192,.28)"></i>待跑</span>
+            <span><i class="dot" style="background:#FFC24B"></i>当前定位</span>
+          </span>
+        </div>
+        <div class="tag tr"><button id="btnFit">适应视图</button> <button id="btnTrack">显示跑道</button></div>
+        <div class="tag bl" id="scaleTag">—</div>
+        <div class="tag br" id="coordTag">—</div>
+        <svg class="compass" style="position:absolute;right:16px;bottom:56px" viewBox="0 0 40 40">
+          <circle cx="20" cy="20" r="15.5" fill="rgba(9,14,20,.82)" stroke="#243546"/>
+          <path d="M20 8.5 L23 20 L20 18.2 L17 20 Z" fill="#FF5F7E"/>
+          <path d="M20 31.5 L17 20 L20 21.8 L23 20 Z" fill="#3A4D60"/>
+          <text x="20" y="6.6" text-anchor="middle" font-size="6.5" fill="#7A90A6" font-family="monospace">N</text>
+        </svg>
+        <div class="tag" style="left:50%;transform:translateX(-50%);bottom:12px;opacity:.55">拖拽平移 · 滚轮缩放 · 双击复位</div>
+      </div>
+    </div>
+
+    <aside class="panel">
+      <div class="card">
+        <h2>路线</h2>
+        <select id="selRoute"></select>
+        <div class="kv" style="margin-top:11px">
+          <div class="cell"><div class="k">点数</div><div class="v" id="mPts">—</div></div>
+          <div class="cell"><div class="k">单圈长度</div><div class="v" id="mLap">—<small>m</small></div></div>
+          <div class="cell"><div class="k">坐标系</div><div class="v" style="font-size:13px" id="mCrs">GCJ02</div></div>
+          <div class="cell"><div class="k">方向</div><div class="v" style="font-size:13px" id="mDir">—</div></div>
+        </div>
+        <div class="hint" style="margin-top:10px" id="routeNote"></div>
+      </div>
+
+      <div class="card">
+        <h2>运行控制</h2>
+        <div class="row">
+          <button class="primary grow" id="btnRun">开始</button>
+          <button id="btnReset">复位</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <label style="width:64px">速度</label>
+          <input type="range" id="rngSpeed" min="5" max="22" step="0.5" value="12.5" class="grow">
+          <span class="mono" style="width:74px;text-align:right" id="vSpeed">12.5 km/h</span>
+        </div>
+        <div class="row">
+          <label style="width:64px">目标圈</label>
+          <input type="number" id="inpLaps" value="0" min="0" max="99" step="1" style="width:76px">
+          <span class="hint grow">0 = 不限圈数，到点自动停</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>实时读数</h2>
+        <div class="kv">
+          <div class="cell"><div class="k">里程</div><div class="v accent" id="rDist">0.0<small>m</small></div></div>
+          <div class="cell"><div class="k">用时</div><div class="v" id="rTime">00:00</div></div>
+          <div class="cell"><div class="k">圈数</div><div class="v" id="rLaps">0</div></div>
+          <div class="cell"><div class="k">航向</div><div class="v" id="rHead">—<small>°</small></div></div>
+          <div class="cell"><div class="k">当前段</div><div class="v" style="font-size:14px" id="rSeg">—</div></div>
+          <div class="cell"><div class="k">配速</div><div class="v" style="font-size:14px" id="rPace">—</div></div>
+        </div>
+        <div class="bar"><i id="lapBar"></i></div>
+        <div class="hint" style="margin-top:8px">偏差 <b class="mono" id="rOff">0.00 m</b>（模拟点恒在线上；真机用「位置反算」核）</div>
+      </div>
+
+      <div class="card">
+        <h2>导出</h2>
+        <div class="row">
+          <button class="grow" id="btnExport">下载 route.local.json</button>
+          <button id="btnCopy">复制坐标</button>
+        </div>
+        <div class="hint" style="margin-top:9px">格式与 SHUAutoRun 的 <b>route.local.json</b> 一致（首末点重复闭合），可直接替换使用。</div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ============ 位置反算 ============ -->
+  <section class="pane" id="pane-check">
+    <div class="wide">
+      <div class="card">
+        <h2>位置反算 · 真机坐标是否落在跑道上</h2>
+        <div class="hint" style="margin-bottom:10px">
+          粘贴真机回传坐标（每行一组，<b>lat lon</b> 或 <b>lon lat</b> 都能识别），也支持整段 SHUAutoRun 日志。
+          判据是<b>到路线折线的最短距离</b> —— 注意「离跑道中心多少米」是无效判据：标准田径场是跑道形，37~79 m 都可能是合法点。
+        </div>
+        <div class="cols2">
+          <div>
+            <textarea id="taCheck" rows="13" spellcheck="false" placeholder="31.377831912849054, 121.249782689634&#10;31.377853801248353, 121.24976515065893&#10;&#10;或者整行日志：&#10;[location] 配置 #1 已生效 连接 5 ... : 31.377831, 121.249782 (gcj02)"></textarea>
+            <div class="row" style="margin-top:10px">
+              <button class="primary" id="btnCheck">开始反算</button>
+              <button id="btnCheckClear">清空</button>
+              <span class="hint grow" id="checkCount"></span>
+            </div>
+          </div>
+          <div>
+            <div class="kv" style="margin-bottom:10px">
+              <div class="cell"><div class="k">坐标组数</div><div class="v" id="ckN">—</div></div>
+              <div class="cell"><div class="k">最大偏离</div><div class="v" id="ckMax">—</div></div>
+              <div class="cell"><div class="k">均值偏离</div><div class="v" id="ckAvg">—</div></div>
+              <div class="cell"><div class="k">判定</div><div class="v" style="font-size:15px" id="ckVerdict">—</div></div>
+            </div>
+            <div class="tablewrap"><table id="ckTable">
+              <thead><tr><th>#</th><th>纬度</th><th>经度</th><th>偏离中线</th><th>沿线里程</th><th>段号</th></tr></thead>
+              <tbody><tr><td colspan="6" style="text-align:center;color:var(--dim2)">等待输入</td></tr></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>怎么用 · 三步复核一条注入轨迹</h2>
+        <div class="cols2" style="grid-template-columns:repeat(3,1fr)">
+          <div>
+            <div class="big" style="font-size:19px;color:var(--mint)">01 取数</div>
+            <div class="hint" style="margin-top:6px">在 SHUAutoRun 启动日志里找 <b>[location] … 已生效 连接 N … : 31.377831, 121.249782 (gcj02)</b>，整段粘过来即可，工具会自动只抠坐标。</div>
+          </div>
+          <div>
+            <div class="big" style="font-size:19px;color:var(--mint)">02 反算</div>
+            <div class="hint" style="margin-top:6px">把每组坐标投影到路线所在平面，求到折线的最短距离、沿线里程与段号 —— 与 <b>verify_positions.py</b> 同一套算法。</div>
+          </div>
+          <div>
+            <div class="big" style="font-size:19px;color:var(--mint)">03 判读</div>
+            <div class="hint" style="margin-top:6px">偏离 <b>≤ 1 m</b> 通过、<b>≤ 3 m</b> 可接受；再大就是坐标没落在跑道上，需回查路线标定或注入点。</div>
+            <div class="hint" style="margin-top:5px;color:var(--dim2)">这里的「偏离」就是<b>左右方向</b>的横移量（垂直于路线）。面板里「左右最大漂移」的上限 3 m 正是这个量的主要来源，所以 ≤3 m 属正常。</div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:12px;padding-top:11px;border-top:1px solid var(--line)">
+          ⚠️ 别拿「离跑道中心多少米」当判据：标准田径场是<b>跑道形</b>（两直道 + 两半圆），到中心 37~79 m 都可能落在合法路径上。
+          默认使用<b>嘉定校区</b>路线；到「轨迹沙盘」里可切换到宝山示例路线。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 坐标转换 ============ -->
+  <section class="pane" id="pane-geo">
+    <div class="wide" style="max-width:900px">
+      <div class="card">
+        <h2>坐标系转换 · GCJ02 ⇄ WGS84</h2>
+        <div class="hint" style="margin-bottom:12px">
+          高德 / 微信小程序用的是 <b>GCJ02</b>（火星坐标）；GPS 原始与 Esri 影像、Google Earth 是 <b>WGS84</b>。
+          在上海一带两者相差约 <b>500 m</b>，混用会整体偏移一大截。
+        </div>
+        <div class="cols2">
+          <div>
+            <div class="row"><label style="width:52px">纬度</label><input id="geLat" class="grow mono" value="31.377538"></div>
+            <div class="row"><label style="width:52px">经度</label><input id="geLon" class="grow mono" value="121.249512"></div>
+            <div class="row">
+              <label style="width:52px">方向</label>
+              <select id="geDir" class="grow">
+                <option value="g2w">GCJ02 → WGS84</option>
+                <option value="w2g">WGS84 → GCJ02</option>
+              </select>
+            </div>
+            <div class="row"><button class="primary grow" id="btnGeo">转换</button><button id="btnGeoSelf">取路线中心</button></div>
+          </div>
+          <div>
+            <div class="kv">
+              <div class="cell" style="grid-column:span 2"><div class="k">纬度</div><div class="v" id="geOutLat">—</div></div>
+              <div class="cell" style="grid-column:span 2"><div class="k">经度</div><div class="v" id="geOutLon">—</div></div>
+              <div class="cell"><div class="k">Δ纬度</div><div class="v" style="font-size:14px" id="geDLat">—</div></div>
+              <div class="cell"><div class="k">Δ经度</div><div class="v" style="font-size:14px" id="geDLon">—</div></div>
+              <div class="cell" style="grid-column:span 2"><div class="k">地面位移</div><div class="v accent" id="geDist">—</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>几何参数（嘉定校区田径场）</h2>
+        <div class="kv">
+          <div class="cell"><div class="k">跑道中心</div><div class="v" style="font-size:14px" id="gCenter">—</div></div>
+          <div class="cell"><div class="k">长轴方位</div><div class="v" style="font-size:14px" id="gAz">—</div></div>
+          <div class="cell"><div class="k">内圈半径</div><div class="v" style="font-size:14px" id="gR">—</div></div>
+          <div class="cell"><div class="k">直道长度</div><div class="v" style="font-size:14px" id="gS">—</div></div>
+          <div class="cell"><div class="k">道宽 × 道数</div><div class="v" style="font-size:14px" id="gW">—</div></div>
+          <div class="cell"><div class="k">拟合外沿</div><div class="v" style="font-size:14px" id="gOut">—</div></div>
+        </div>
+        <div class="hint" style="margin-top:10px">
+          全部由中国高德卫星瓦片（z=18）标定：射线检测白色车道线 + 锁比例椭圆拟合，
+          外沿拟合 <b>178.0 × 93.1 m</b>，与 IAAF 标准 400 m 外沿 176.9 × 92.5 m 吻合到 1% 内。
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>上海大学校园跑 <b style="color:var(--ink2)">LOCATION LAB</b></span>
+  <span class="sep">/</span>
+  <span>纯前端 · 零依赖 · 单文件 · 可离线</span>
+  <span class="sep">/</span>
+  <span>路线数据 GCJ02 · <b id="footPts" style="color:var(--ink2)">—</b> 点</span>
+  <span class="sep">/</span>
+  <span style="margin-left:auto" id="footNote"></span>
+</footer>
+
+<script>
+"use strict";
+/* =====================================================================
+   上海大学校园跑 · LOCATION LAB
+   纯静态单文件：无外部依赖、无网络请求，双击 index.html 即可运行。
+   数据：由高德卫星瓦片标定的田径场环形路线（GCJ02）。
+   ===================================================================== */
+
+const DATA = {"generated":"2026-10","routes":{"jiading":{"name":"上海大学嘉定校区田径场（悉尼工商学院）","coordinateSystem":"gcj02","points":[{"latitude":31.3773462,"longitude":121.2500595},{"latitude":31.3774032,"longitude":121.2500265},{"latitude":31.3774601,"longitude":121.2499935},{"latitude":31.377517,"longitude":121.2499605},{"latitude":31.3775739,"longitude":121.2499275},{"latitude":31.3776308,"longitude":121.2498945},{"latitude":31.3776877,"longitude":121.2498614},{"latitude":31.3777447,"longitude":121.2498284},{"latitude":31.3778016,"longitude":121.2497954},{"latitude":31.3778585,"longitude":121.2497624},{"latitude":31.3779154,"longitude":121.2497294},{"latitude":31.3779723,"longitude":121.2496964},{"latitude":31.3780293,"longitude":121.2496633},{"latitude":31.3780549,"longitude":121.2496468},{"latitude":31.3780791,"longitude":121.2496278},{"latitude":31.3781019,"longitude":121.2496063},{"latitude":31.378123,"longitude":121.2495827},{"latitude":31.3781422,"longitude":121.249557},{"latitude":31.3781594,"longitude":121.2495294},{"latitude":31.3781744,"longitude":121.2495002},{"latitude":31.3781873,"longitude":121.2494696},{"latitude":31.3781978,"longitude":121.2494378},{"latitude":31.3782058,"longitude":121.2494051},{"latitude":31.3782114,"longitude":121.2493716},{"latitude":31.3782145,"longitude":121.2493377},{"latitude":31.378215,"longitude":121.2493037},{"latitude":31.378213,"longitude":121.2492697},{"latitude":31.3782084,"longitude":121.2492361},{"latitude":31.3782013,"longitude":121.249203},{"latitude":31.3781918,"longitude":121.2491708},{"latitude":31.3781799,"longitude":121.2491397},{"latitude":31.3781657,"longitude":121.2491099},{"latitude":31.3781493,"longitude":121.2490816},{"latitude":31.3781309,"longitude":121.2490552},{"latitude":31.3781105,"longitude":121.2490307},{"latitude":31.3780884,"longitude":121.2490083},{"latitude":31.3780647,"longitude":121.2489883},{"latitude":31.3780396,"longitude":121.2489708},{"latitude":31.3780133,"longitude":121.2489558},{"latitude":31.377986,"longitude":121.2489436},{"latitude":31.3779579,"longitude":121.2489342},{"latitude":31.3779291,"longitude":121.2489277},{"latitude":31.3779,"longitude":121.2489242},{"latitude":31.3778707,"longitude":121.2489236},{"latitude":31.3778415,"longitude":121.2489259},{"latitude":31.3778126,"longitude":121.2489313},{"latitude":31.3777842,"longitude":121.2489395},{"latitude":31.3777565,"longitude":121.2489506},{"latitude":31.3777298,"longitude":121.2489645},{"latitude":31.3776728,"longitude":121.2489975},{"latitude":31.3776159,"longitude":121.2490305},{"latitude":31.377559,"longitude":121.2490635},{"latitude":31.3775021,"longitude":121.2490965},{"latitude":31.3774452,"longitude":121.2491295},{"latitude":31.3773883,"longitude":121.2491626},{"latitude":31.3773313,"longitude":121.2491956},{"latitude":31.3772744,"longitude":121.2492286},{"latitude":31.3772175,"longitude":121.2492616},{"latitude":31.3771606,"longitude":121.2492946},{"latitude":31.3771037,"longitude":121.2493276},{"latitude":31.3770467,"longitude":121.2493607},{"latitude":31.3770211,"longitude":121.2493772},{"latitude":31.3769969,"longitude":121.2493962},{"latitude":31.3769741,"longitude":121.2494177},{"latitude":31.376953,"longitude":121.2494413},{"latitude":31.3769338,"longitude":121.249467},{"latitude":31.3769166,"longitude":121.2494946},{"latitude":31.3769016,"longitude":121.2495238},{"latitude":31.3768887,"longitude":121.2495544},{"latitude":31.3768782,"longitude":121.2495862},{"latitude":31.3768702,"longitude":121.2496189},{"latitude":31.3768646,"longitude":121.2496524},{"latitude":31.3768615,"longitude":121.2496863},{"latitude":31.376861,"longitude":121.2497203},{"latitude":31.376863,"longitude":121.2497543},{"latitude":31.3768676,"longitude":121.2497879},{"latitude":31.3768747,"longitude":121.249821},{"latitude":31.3768842,"longitude":121.2498532},{"latitude":31.3768961,"longitude":121.2498843},{"latitude":31.3769103,"longitude":121.2499141},{"latitude":31.3769267,"longitude":121.2499424},{"latitude":31.3769451,"longitude":121.2499688},{"latitude":31.3769655,"longitude":121.2499933},{"latitude":31.3769876,"longitude":121.2500157},{"latitude":31.3770113,"longitude":121.2500357},{"latitude":31.3770364,"longitude":121.2500532},{"latitude":31.3770627,"longitude":121.2500682},{"latitude":31.37709,"longitude":121.2500804},{"latitude":31.3771181,"longitude":121.2500898},{"latitude":31.3771469,"longitude":121.2500963},{"latitude":31.377176,"longitude":121.2500998},{"latitude":31.3772053,"longitude":121.2501004},{"latitude":31.3772345,"longitude":121.2500981},{"latitude":31.3772634,"longitude":121.2500927},{"latitude":31.3772918,"longitude":121.2500845},{"latitude":31.3773195,"longitude":121.2500734},{"latitude":31.3773462,"longitude":121.2500595},{"latitude":31.3773462,"longitude":121.2500595}],"meta":{"centerLat":31.377538,"centerLon":121.249512,"azimuthDeg":153.5,"innerRadius":36.5,"laneWidth":1.22,"lanes":8,"halfStraight":42.195,"pitch":[105.0,68.0]}},"baoshan":{"name":"上海大学宝山校区（原始示例路线）","coordinateSystem":"gcj02","points":[{"latitude":31.319434,"longitude":121.392733},{"latitude":31.318637,"longitude":121.392784},{"latitude":31.318478,"longitude":121.392923},{"latitude":31.318397,"longitude":121.393214},{"latitude":31.318512,"longitude":121.39348},{"latitude":31.318669,"longitude":121.393577},{"latitude":31.319486,"longitude":121.393526},{"latitude":31.319656,"longitude":121.393391},{"latitude":31.319738,"longitude":121.39315},{"latitude":31.319649,"longitude":121.392884},{"latitude":31.319434,"longitude":121.392733}],"meta":null}}};
+
+/* ---------- 小工具 ---------- */
+const $ = (s) => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const fmt = (v, n = 2) => (Math.abs(v) < 1e-9 ? 0 : v).toFixed(n);
+
+/* ---------- 球面 → 局部平面（等距圆柱小范围近似，误差 < 1 cm/km） ---------- */
+function makeProjector(lat0, lon0) {
+  const rad = Math.PI / 180;
+  const mPerLat = 111132.92 - 559.82 * Math.cos(2 * lat0 * rad) + 1.175 * Math.cos(4 * lat0 * rad)
+                - 0.0023 * Math.cos(6 * lat0 * rad);
+  const mPerLon = 111412.84 * Math.cos(lat0 * rad) - 93.5 * Math.cos(3 * lat0 * rad)
+                + 0.118 * Math.cos(5 * lat0 * rad);
+  return {
+    toXY: (lat, lon) => ({ x: (lon - lon0) * mPerLon, y: (lat - lat0) * mPerLat }),
+    toLL: (x, y) => ({ lat: lat0 + y / mPerLat, lon: lon0 + x / mPerLon }),
+    mPerLat, mPerLon
+  };
+}
+
+/* ---------- GCJ02 / WGS84 ---------- */
+const PIE = Math.PI, AXIS = 6378245.0, EE = 0.00669342162296594323;
+const outOfChina = (lat, lon) => (lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271);
+function tLat(x, y) {
+  let r = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  r += (20.0 * Math.sin(6.0 * x * PIE) + 20.0 * Math.sin(2.0 * x * PIE)) * 2.0 / 3.0;
+  r += (20.0 * Math.sin(y * PIE) + 40.0 * Math.sin(y / 3.0 * PIE)) * 2.0 / 3.0;
+  r += (160.0 * Math.sin(y / 12.0 * PIE) + 320 * Math.sin(y * PIE / 30.0)) * 2.0 / 3.0;
+  return r;
+}
+function tLon(x, y) {
+  let r = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  r += (20.0 * Math.sin(6.0 * x * PIE) + 20.0 * Math.sin(2.0 * x * PIE)) * 2.0 / 3.0;
+  r += (20.0 * Math.sin(x * PIE) + 40.0 * Math.sin(x / 3.0 * PIE)) * 2.0 / 3.0;
+  r += (150.0 * Math.sin(x / 12.0 * PIE) + 300.0 * Math.sin(x / 30.0 * PIE)) * 2.0 / 3.0;
+  return r;
+}
+function wgs2gcj(lat, lon) {
+  if (outOfChina(lat, lon)) return [lat, lon];
+  let dLat = tLat(lon - 105.0, lat - 35.0), dLon = tLon(lon - 105.0, lat - 35.0);
+  const radLat = lat / 180.0 * PIE;
+  let magic = Math.sin(radLat); magic = 1 - EE * magic * magic;
+  const sq = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / ((AXIS * (1 - EE)) / (magic * sq) * PIE);
+  dLon = (dLon * 180.0) / (AXIS / sq * Math.cos(radLat) * PIE);
+  return [lat + dLat, lon + dLon];
+}
+function gcj2wgs(lat, lon) {
+  if (outOfChina(lat, lon)) return [lat, lon];
+  let wLat = lat, wLon = lon;
+  for (let i = 0; i < 40; i++) {
+    const g = wgs2gcj(wLat, wLon);
+    const dLat = g[0] - lat, dLon = g[1] - lon;
+    wLat -= dLat; wLon -= dLon;
+    if (Math.abs(dLat) < 1e-10 && Math.abs(dLon) < 1e-10) break;
+  }
+  return [wLat, wLon];
+}
+
+/* =====================================================================
+   路线模型
+   ===================================================================== */
+function buildRoute(id) {
+  const src = DATA.routes[id];
+  let pts = src.points.slice();
+  // 去掉闭合重复点（项目惯例：首末相同）
+  const a = pts[0], b = pts[pts.length - 1];
+  if (pts.length > 2 && Math.abs(a.latitude - b.latitude) < 1e-9 && Math.abs(a.longitude - b.longitude) < 1e-9) {
+    pts = pts.slice(0, -1);
+  }
+  const lat0 = pts.reduce((s, p) => s + p.latitude, 0) / pts.length;
+  const lon0 = pts.reduce((s, p) => s + p.longitude, 0) / pts.length;
+  const prj = makeProjector(lat0, lon0);
+  const xy = pts.map((p) => prj.toXY(p.latitude, p.longitude));
+  const seg = [];
+  let total = 0;
+  for (let i = 0; i < xy.length; i++) {
+    const p = xy[i], q = xy[(i + 1) % xy.length];
+    const d = Math.hypot(q.x - p.x, q.y - p.y);
+    seg.push({ i, a: p, b: q, len: d, acc: total });
+    total += d;
+  }
+  return { id, name: src.name, meta: src.meta || null, pts, xy, seg, total, prj, lat0, lon0 };
+}
+
+/** 按沿线里程取点（含切线方向） */
+function pointAt(route, dist) {
+  const L = route.total;
+  let d = ((dist % L) + L) % L;
+  for (const s of route.seg) {
+    if (d <= s.acc + s.len || s === route.seg[route.seg.length - 1]) {
+      const t = s.len > 0 ? clamp((d - s.acc) / s.len, 0, 1) : 0;
+      const x = s.a.x + (s.b.x - s.a.x) * t;
+      const y = s.a.y + (s.b.y - s.a.y) * t;
+      const hx = s.b.x - s.a.x, hy = s.b.y - s.a.y;
+      const heading = (Math.atan2(hx, hy) * 180 / Math.PI + 360) % 360; // 北=0 顺时针
+      return { x, y, heading, segIndex: s.i, t, along: d };
+    }
+  }
+  const s = route.seg[0];
+  return { x: s.a.x, y: s.a.y, heading: 0, segIndex: 0, t: 0, along: 0 };
+}
+
+/** 点到折线的最短距离（真机复核用） */
+function nearestOnRoute(route, lat, lon) {
+  const p = route.prj.toXY(lat, lon);
+  let best = { d: Infinity, segIndex: 0, along: 0, t: 0 };
+  for (const s of route.seg) {
+    const dx = s.b.x - s.a.x, dy = s.b.y - s.a.y;
+    const L2 = dx * dx + dy * dy;
+    let t = L2 > 0 ? ((p.x - s.a.x) * dx + (p.y - s.a.y) * dy) / L2 : 0;
+    t = clamp(t, 0, 1);
+    const qx = s.a.x + t * dx, qy = s.a.y + t * dy;
+    const d = Math.hypot(p.x - qx, p.y - qy);
+    if (d < best.d) best = { d, segIndex: s.i, along: s.acc + t * s.len, t };
+  }
+  return best;
+}
+
+/* =====================================================================
+   状态
+   ===================================================================== */
+const state = {
+  routeId: "jiading",
+  route: null,
+  view: { cx: 0, cy: 0, scale: 2.6 },
+  running: false,
+  dist: 0,
+  elapsed: 0,
+  speed: 12.5,
+  targetLaps: 0,
+  lastTs: 0,
+  showTrack: true,
+  drag: null,
+  dpr: 1
+};
+
+/* =====================================================================
+   画布
+   ===================================================================== */
+const cvs = $("#map");
+const ctx = cvs.getContext("2d");
+let W = 0, H = 0;
+
+function resize() {
+  const r = cvs.parentElement.getBoundingClientRect();
+  state.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  W = Math.max(320, Math.round(r.width));
+  H = Math.max(280, Math.round(r.height));
+  cvs.width = Math.round(W * state.dpr);
+  cvs.height = Math.round(H * state.dpr);
+  cvs.style.width = W + "px";
+  cvs.style.height = H + "px";
+  ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+  draw();
+}
+
+const w2s = (x, y) => ({ X: W / 2 + (x - state.view.cx) * state.view.scale, Y: H / 2 - (y - state.view.cy) * state.view.scale });
+const s2w = (X, Y) => ({ x: state.view.cx + (X - W / 2) / state.view.scale, y: state.view.cy - (Y - H / 2) / state.view.scale });
+
+/** 跑道形（两直道 + 两半圆）：坐标轴 u 沿长轴、v 垂直，再做方位旋转 + 中心平移 */
+function stadiumPoints(half, r, az, c0 = { x: 0, y: 0 }, n = 96) {
+  const pts = [];
+  const ca = Math.cos(az), sa = Math.sin(az);
+  const w = (u, v) => ({ x: c0.x + u * sa + v * ca, y: c0.y + u * ca - v * sa });
+  for (let i = 0; i <= n; i++) {                      // 右半圆 -90°→90°
+    const t = -Math.PI / 2 + Math.PI * i / n;
+    pts.push(w(half + r * Math.cos(t), r * Math.sin(t)));
+  }
+  for (let i = 0; i <= n; i++) {                      // 左半圆 90°→270°
+    const t = Math.PI / 2 + Math.PI * i / n;
+    pts.push(w(-half + r * Math.cos(t), r * Math.sin(t)));
+  }
+  return pts;
+}
+function path(pts, close = true) {
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    const s = w2s(p.x, p.y);
+    i ? ctx.lineTo(s.X, s.Y) : ctx.moveTo(s.X, s.Y);
+  });
+  if (close) ctx.closePath();
+}
+
+function drawGrid() {
+  const sc = state.view.scale;
+  let step = 10;
+  for (const s of [5, 10, 20, 50, 100, 200]) { if (s * sc >= 42) { step = s; break; } step = 200; }
+  const tl = s2w(0, 0), br = s2w(W, H);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(120,160,200,.055)";
+  const x0 = Math.floor(tl.x / step) * step, x1 = br.x;
+  for (let x = x0; x <= x1; x += step) {
+    const p = w2s(x, 0);
+    ctx.beginPath(); ctx.moveTo(Math.round(p.X) + .5, 0); ctx.lineTo(Math.round(p.X) + .5, H); ctx.stroke();
+  }
+  const y0 = Math.floor(br.y / step) * step, y1 = tl.y;
+  for (let y = y0; y <= y1; y += step) {
+    const p = w2s(0, y);
+    ctx.beginPath(); ctx.moveTo(0, Math.round(p.Y) + .5); ctx.lineTo(W, Math.round(p.Y) + .5); ctx.stroke();
+  }
+}
+
+function drawTrack(meta, R) {
+  const az = meta.azimuthDeg * Math.PI / 180;
+  const half = meta.halfStraight;
+  const r0 = meta.innerRadius, lw = meta.laneWidth, lanes = meta.lanes;
+  const rOut = r0 + lw * lanes;
+  // 跑道元数据是绝对经纬度，路线用的是「质心为原点」的局部平面 → 先换算到同一坐标系
+  const c0 = R.prj.toXY(meta.centerLat, meta.centerLon);
+  const ca = Math.cos(az), sa = Math.sin(az);
+  const w = (u, v) => ({ x: c0.x + u * sa + v * ca, y: c0.y + u * ca - v * sa });
+  const rect = (hl, hw) => [w(-hl, -hw), w(hl, -hw), w(hl, hw), w(-hl, hw)];
+
+  // 外圈保护带
+  path(stadiumPoints(half, rOut + 9, az, c0));
+  ctx.fillStyle = "rgba(30,56,50,.26)";
+  ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(90,150,130,.22)";
+  ctx.stroke();
+
+  // 跑道环带 + 内场
+  path(stadiumPoints(half, rOut, az, c0));
+  ctx.fillStyle = "#1A2A23";
+  ctx.fill();
+  path(stadiumPoints(half, r0, az, c0));
+  ctx.fillStyle = "#101E19";
+  ctx.fill();
+
+  // 分道线（0 = 内沿，lanes = 外沿）
+  for (let k = 0; k <= lanes; k++) {
+    const r = r0 + k * lw;
+    const edge = (k === 0 || k === lanes);
+    path(stadiumPoints(half, r, az, c0));
+    ctx.lineWidth = edge ? 1.7 : 1;
+    ctx.strokeStyle = edge ? "rgba(226,242,236,.66)" : "rgba(210,232,224,.22)";
+    ctx.stroke();
+  }
+
+  // 内场足球场 105 × 68
+  const [pl, pw] = meta.pitch;
+  ctx.strokeStyle = "rgba(118,196,172,.30)";
+  ctx.lineWidth = 1.1;
+  path(rect(pl / 2, pw / 2)); ctx.stroke();          // 边线
+  path([w(0, -pw / 2), w(0, pw / 2)], false); ctx.stroke();   // 中线
+  const ccs = w2s(w(0, 0).x, w(0, 0).y);            // 中圈
+  ctx.beginPath(); ctx.arc(ccs.X, ccs.Y, 9.15 * state.view.scale, 0, Math.PI * 2); ctx.stroke();
+
+  for (const sgn of [1, -1]) {                       // 两侧禁区 / 小禁区
+    path([w(sgn * pl / 2, -20.16), w(sgn * (pl / 2 - 16.5), -20.16),
+          w(sgn * (pl / 2 - 16.5), 20.16), w(sgn * pl / 2, 20.16)], false);
+    ctx.stroke();
+    path([w(sgn * pl / 2, -9.16), w(sgn * (pl / 2 - 5.5), -9.16),
+          w(sgn * (pl / 2 - 5.5), 9.16), w(sgn * pl / 2, 9.16)], false);
+    ctx.stroke();
+  }
+
+  // 道次数字（贴在一条直道起始端，缩放够大才画）
+  if (state.view.scale > 4.2) {
+    ctx.save();
+    ctx.fillStyle = "rgba(206,230,222,.55)";
+    ctx.font = "600 10px " + "Consolas, monospace";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (let k = 0; k < lanes; k++) {
+      const rr = r0 + lw * (k + 0.5);
+      const p = w(half - 7, -rr);
+      const s = w2s(p.x, p.y);
+      ctx.fillText(String(k + 1), s.X, s.Y);
+    }
+    ctx.restore();
+  }
+}
+
+function drawRouteLine() {
+  const R = state.route;
+  const pts = R.xy;
+  // 底：深色描边提升对比（白色道线太多，细线会被淹没）
+  path(pts);
+  ctx.lineWidth = 5.5;
+  ctx.strokeStyle = "rgba(4,18,16,.55)";
+  ctx.stroke();
+  // 底：待跑
+  path(pts);
+  ctx.lineWidth = 2.6;
+  ctx.strokeStyle = "rgba(63,224,192,.55)";
+  ctx.setLineDash([]);
+  ctx.stroke();
+
+  // 已跑段
+  if (state.dist > 0.05) {
+    const travelled = [];
+    const done = state.dist % R.total;
+    for (const s of R.seg) {
+      if (s.acc + s.len <= done) travelled.push(s.a);
+      else if (s.acc < done) { travelled.push(s.a); travelled.push(pointAt(R, done)); break; }
+    }
+    if (travelled.length) {
+      path(travelled, false);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#3FE0C0";
+      ctx.shadowColor = "rgba(63,224,192,.55)";
+      ctx.shadowBlur = 12;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  // 采样点
+  if (R.pts.length <= 30) {
+    for (const p of pts) {
+      const s = w2s(p.x, p.y);
+      ctx.beginPath(); ctx.arc(s.X, s.Y, 2.6, 0, 7); ctx.fillStyle = "rgba(63,224,192,.9)"; ctx.fill();
+    }
+  }
+
+  // 起点 + 垂直于行进方向的起跑线刻度
+  const p0 = pts[0], p1 = pts[1 % pts.length];
+  const tx = p1.x - p0.x, ty = p1.y - p0.y, tl = Math.hypot(tx, ty) || 1;
+  const nx = -ty / tl, ny = tx / tl;                 // 法向
+  const halfSpan = state.route.meta ? 2.2 : 4;        // 起跑线半长（米）
+  const a1 = w2s(p0.x + nx * halfSpan, p0.y + ny * halfSpan);
+  const a2 = w2s(p0.x - nx * halfSpan, p0.y - ny * halfSpan);
+  ctx.beginPath(); ctx.moveTo(a1.X, a1.Y); ctx.lineTo(a2.X, a2.Y);
+  ctx.strokeStyle = "rgba(255,194,75,.62)"; ctx.lineWidth = 2.2; ctx.stroke();
+
+  const st = w2s(p0.x, p0.y);
+  ctx.beginPath(); ctx.arc(st.X, st.Y, 7, 0, 7);
+  ctx.strokeStyle = "#8BFFE6"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(st.X, st.Y, 2.6, 0, 7); ctx.fillStyle = "#3FE0C0"; ctx.fill();
+}
+
+function drawRunner() {
+  const R = state.route;
+  const p = pointAt(R, state.dist);
+  const s = w2s(p.x, p.y);
+  const hl = state.elapsed > 0 || state.running;
+
+  // 光晕
+  const g = ctx.createRadialGradient(s.X, s.Y, 0, s.X, s.Y, 26);
+  g.addColorStop(0, "rgba(255,194,75,.30)");
+  g.addColorStop(1, "rgba(255,194,75,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(s.X, s.Y, 26, 0, 7); ctx.fill();
+
+  // 朝向箭头
+  const rad = (p.heading - 90) * Math.PI / 180;
+  ctx.save();
+  ctx.translate(s.X, s.Y);
+  ctx.rotate(rad);
+  ctx.beginPath();
+  ctx.moveTo(20, 0); ctx.lineTo(9, -6.5); ctx.lineTo(11.5, 0); ctx.lineTo(9, 6.5);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(255,194,75,.92)";
+  ctx.fill();
+  ctx.restore();
+
+  // 本体
+  ctx.beginPath(); ctx.arc(s.X, s.Y, 6.4, 0, 7);
+  ctx.fillStyle = "#FFC24B"; ctx.fill();
+  ctx.lineWidth = 2.4; ctx.strokeStyle = "#FFF6E2"; ctx.stroke();
+  ctx.beginPath(); ctx.arc(s.X, s.Y, 11.5, 0, 7);
+  ctx.lineWidth = 1.2; ctx.strokeStyle = "rgba(255,194,75,.35)"; ctx.stroke();
+  return { p, s, hl };
+}
+
+function drawHud(p) {
+  // 比例尺：从候选刻度里挑「不超过 150 px 的最大整数档」
+  const sc = state.view.scale;
+  const cands = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000, 2000];
+  let unit = cands[0];
+  for (const u of cands) if (u * sc <= 150) unit = u;
+  const px = unit * sc;
+  $("#scaleTag").innerHTML = '<span style="display:inline-block;width:' + px.toFixed(0) +
+    'px;height:6px;border:1px solid var(--dim2);border-top:0;margin-right:7px;vertical-align:1px"></span>' +
+    (unit >= 1000 ? (unit / 1000) + " km" : unit + " m");
+  // 光标经纬度
+  const ll = state.route.prj.toLL(p.x, p.y);
+  $("#coordTag").textContent = fmt(ll.lat, 6) + ", " + fmt(ll.lon, 6);
+}
+
+function drawCheckMarks() {
+  if (!checkMarks.length) return;
+  checkMarks.forEach((p) => {
+    const s = w2s(p.x, p.y);
+    ctx.beginPath(); ctx.arc(s.X, s.Y, 5.5, 0, 7);
+    ctx.fillStyle = "rgba(89,169,255,.95)"; ctx.fill();
+    ctx.lineWidth = 1.8; ctx.strokeStyle = "#EAF4FF"; ctx.stroke();
+  });
+}
+
+function draw() {
+  if (!state.route) return;
+  ctx.clearRect(0, 0, W, H);
+  drawGrid();
+  if (state.showTrack && state.route.meta) drawTrack(state.route.meta, state.route);
+  drawRouteLine();
+  const { p } = drawRunner();
+  drawCheckMarks();
+  drawHud(p);
+}
+
+/* =====================================================================
+   动画循环
+   ===================================================================== */
+function loop(ts) {
+  requestAnimationFrame(loop);
+  if (!state.running) { state.lastTs = 0; return; }
+  if (!state.lastTs) { state.lastTs = ts; return; }
+  let dt = (ts - state.lastTs) / 1000;
+  state.lastTs = ts;
+  if (dt > 0.25) dt = 0.25;
+
+  const v = state.speed / 3.6;      // m/s
+  state.dist += v * dt;
+  state.elapsed += dt;
+
+  if (state.targetLaps > 0 && state.dist >= state.targetLaps * state.route.total) {
+    state.dist = state.targetLaps * state.route.total;
+    setRunning(false);
+    state.arrived = true;
+  }
+  renderReadouts();
+  draw();
+}
+
+function renderReadouts() {
+  const R = state.route;
+  const laps = state.dist / R.total;
+  const p = pointAt(R, state.dist);
+  $("#rDist").innerHTML = fmt(state.dist, 1) + "<small>m</small>";
+  const mm = Math.floor(state.elapsed / 60), ss = Math.floor(state.elapsed % 60);
+  $("#rTime").textContent = String(mm).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
+  $("#rLaps").textContent = (Math.floor(laps * 10) / 10).toFixed(1);
+  $("#rHead").innerHTML = fmt(p.heading, 1) + "<small>°</small>";
+  $("#rSeg").textContent = (p.segIndex + 1) + " / " + R.seg.length;
+  const paceSec = state.speed > 0.1 ? 1000 / state.speed * 3.6 * 10 / 10 : 0; // 每公里秒数
+  const pm = Math.floor(paceSec / 60), ps = Math.floor(paceSec % 60);
+  $("#rPace").textContent = state.speed > 0.1 ? pm + "'" + String(ps).padStart(2, "0") + "\"/km" : "—";
+  const frac = state.targetLaps > 0
+    ? clamp(laps / state.targetLaps, 0, 1)
+    : (laps % 1);
+  $("#lapBar").style.width = (frac * 100).toFixed(1) + "%";
+  $("#liveTxt").textContent = state.running ? "RUNNING" : (state.dist > 0 ? "PAUSED" : "STANDBY");
+  $("#liveDot").style.background = state.running ? "var(--mint)" : (state.dist > 0 ? "var(--amber)" : "var(--dim2)");
+}
+
+/* =====================================================================
+   视图与交互
+   ===================================================================== */
+function fitView() {
+  const R = state.route;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of R.xy) {
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+  }
+  const w = Math.max(maxX - minX, 1), h = Math.max(maxY - minY, 1);
+  state.view.cx = (minX + maxX) / 2;
+  state.view.cy = (minY + maxY) / 2;
+  state.view.scale = clamp(Math.min(W / (w * 1.34), H / (h * 1.34)), 0.4, 9);
+  draw();
+}
+
+cvs.addEventListener("pointerdown", (e) => {
+  cvs.setPointerCapture(e.pointerId);
+  state.drag = { X: e.clientX, Y: e.clientY, cx: state.view.cx, cy: state.view.cy };
+  cvs.classList.add("drag");
+});
+cvs.addEventListener("pointermove", (e) => {
+  if (!state.drag) return;
+  const dx = e.clientX - state.drag.X, dy = e.clientY - state.drag.Y;
+  state.view.cx = state.drag.cx - dx / state.view.scale;
+  state.view.cy = state.drag.cy + dy / state.view.scale;
+  draw();
+});
+const endDrag = () => { state.drag = null; cvs.classList.remove("drag"); };
+cvs.addEventListener("pointerup", endDrag);
+cvs.addEventListener("pointercancel", endDrag);
+
+cvs.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const r = cvs.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const before = s2w(mx, my);
+  const k = Math.exp(-e.deltaY * 0.0016);
+  state.view.scale = clamp(state.view.scale * k, 0.4, 12);
+  const after = s2w(mx, my);
+  state.view.cx += before.x - after.x;
+  state.view.cy += before.y - after.y;
+  draw();
+}, { passive: false });
+
+cvs.addEventListener("dblclick", fitView);
+
+/* =====================================================================
+   控制
+   ===================================================================== */
+function setRunning(on) {
+  if (on) {
+    if (state.targetLaps > 0 && state.dist >= state.targetLaps * state.route.total - 0.01) state.dist = 0;
+    state.arrived = false;
+    state.lastTs = 0;
+  }
+  state.running = on;
+  $("#btnRun").textContent = on ? "暂停" : "开始";
+  $("#btnRun").classList.toggle("primary", !on);
+  renderReadouts();
+  draw();
+}
+
+function resetRun() {
+  state.running = false;
+  state.dist = 0;
+  state.elapsed = 0;
+  state.lastTs = 0;
+  state.arrived = false;
+  $("#btnRun").textContent = "开始";
+  $("#btnRun").classList.add("primary");
+  renderReadouts();
+  draw();
+}
+
+$("#btnRun").addEventListener("click", () => setRunning(!state.running));
+$("#btnReset").addEventListener("click", resetRun);
+$("#btnFit").addEventListener("click", fitView);
+$("#btnTrack").addEventListener("click", () => {
+  state.showTrack = !state.showTrack;
+  $("#btnTrack").textContent = state.showTrack ? "隐藏跑道" : "显示跑道";
+  draw();
+});
+$("#rngSpeed").addEventListener("input", (e) => {
+  state.speed = parseFloat(e.target.value);
+  $("#vSpeed").textContent = state.speed.toFixed(1) + " km/h";
+  renderReadouts();
+});
+$("#inpLaps").addEventListener("change", (e) => {
+  state.targetLaps = clamp(parseInt(e.target.value || "0", 10) || 0, 0, 99);
+  renderReadouts();
+});
+
+/* =====================================================================
+   路线切换
+   ===================================================================== */
+function loadRoute(id) {
+  state.routeId = id;
+  state.route = buildRoute(id);
+  const R = state.route;
+  const closedLen = R.total;
+  $("#mPts").innerHTML = R.pts.length + "<small>点</small>";
+  $("#mLap").innerHTML = fmt(closedLen, 1) + "<small>m</small>";
+  $("#mCrs").textContent = "GCJ02";
+  $("#mDir").textContent = "逆时针";
+  $("#routeNote").innerHTML = R.meta
+    ? "中心 <b class=\"mono\">" + fmt(R.meta.centerLat, 6) + ", " + fmt(R.meta.centerLon, 6) + "</b><br>长轴方位 <b class=\"mono\">" + R.meta.azimuthDeg + "°</b>　内侧半径 <b class=\"mono\">" + R.meta.innerRadius + " m</b>"
+    : "原始路线（未标定跑道几何），仅显示折线与采样点。";
+  $("#topRoute").textContent = R.name;
+  $("#footPts").textContent = R.pts.length;
+  resetRun();
+  fitView();
+  fillGeoMeta();
+}
+
+function fillGeoMeta() {
+  const R = state.route, m = R.meta;
+  if (!m) return;
+  $("#gCenter").textContent = fmt(m.centerLat, 6) + ", " + fmt(m.centerLon, 6);
+  $("#gAz").textContent = m.azimuthDeg + "°";
+  $("#gR").textContent = m.innerRadius + " m";
+  $("#gS").textContent = (m.halfStraight * 2).toFixed(2) + " m";
+  $("#gW").textContent = m.laneWidth + " m × " + m.lanes;
+  $("#gOut").textContent = "178.0 × 93.1 m";
+}
+
+/* 下拉框 */
+Object.keys(DATA.routes).forEach((k) => {
+  const o = document.createElement("option");
+  o.value = k;
+  o.textContent = DATA.routes[k].name;
+  $("#selRoute").appendChild(o);
+});
+$("#selRoute").addEventListener("change", (e) => loadRoute(e.target.value));
+
+/* =====================================================================
+   导出
+   ===================================================================== */
+function routeFile(routeId) {
+  const src = DATA.routes[routeId];
+  return {
+    name: src.name,
+    coordinateSystem: "gcj02",
+    points: src.points.map((p) => ({ latitude: +p.latitude.toFixed(7), longitude: +p.longitude.toFixed(7) }))
+  };
+}
+$("#btnExport").addEventListener("click", () => {
+  const doc = routeFile(state.routeId);
+  const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "route.local.json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+});
+$("#btnCopy").addEventListener("click", async () => {
+  const doc = routeFile(state.routeId);
+  const txt = doc.points.map((p) => p.latitude.toFixed(7) + "," + p.longitude.toFixed(7)).join("\n");
+  try { await navigator.clipboard.writeText(txt); $("#btnCopy").textContent = "已复制 " + doc.points.length + " 点"; }
+  catch { $("#btnCopy").textContent = "复制失败（需 https/localhost）"; }
+  setTimeout(() => ($("#btnCopy").textContent = "复制坐标"), 1800);
+});
+
+/* =====================================================================
+   位置反算
+   ===================================================================== */
+function parseCoords(text) {
+  const out = [];
+  text.split(/\r?\n/).forEach((line, li) => {
+    if (!line.trim()) return;
+    // 抓所有“数字.数字”形式的数对
+    const nums = (line.match(/-?\d{2,3}\.\d{3,}/g) || []).map(Number);
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      let a = nums[i], b = nums[i + 1];
+      // 自动判序：中国大陆 lat 18~54，lon 73~136
+      let lat, lon;
+      if (a >= 18 && a <= 54 && b >= 73 && b <= 136) { lat = a; lon = b; }
+      else if (b >= 18 && b <= 54 && a >= 73 && a <= 136) { lat = b; lon = a; }
+      else continue;
+      out.push({ lat, lon, line: li + 1 });
+      i++; // 每行取第一组，避免日志里的速度/里程被误读
+      break;
+    }
+  });
+  return out;
+}
+
+$("#btnCheck").addEventListener("click", () => {
+  const R = state.route;
+  const arr = parseCoords($("#taCheck").value);
+  const tb = $("#ckTable").querySelector("tbody");
+  if (!arr.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--rose)">没解析到有效坐标（需 纬度, 经度 形式，保留 3 位以上小数）</td></tr>';
+    $("#ckN").textContent = "0"; $("#ckMax").textContent = "—"; $("#ckAvg").textContent = "—";
+    $("#ckVerdict").textContent = "无数据"; $("#ckVerdict").className = "v";
+    return;
+  }
+  let maxD = 0, sum = 0;
+  const rows = arr.map((pt, i) => {
+    const r = nearestOnRoute(R, pt.lat, pt.lon);
+    maxD = Math.max(maxD, r.d);
+    sum += r.d;
+    const cls = r.d <= 1 ? "ok" : (r.d <= 3 ? "mid" : "bad");
+    return '<tr><td>' + (i + 1) + '</td><td>' + fmt(pt.lat, 6) + '</td><td>' + fmt(pt.lon, 6) +
+      '</td><td class="' + cls + '">' + fmt(r.d, 2) + ' m</td><td>' + fmt(r.along, 1) +
+      ' m</td><td>' + (r.segIndex + 1) + ' / ' + R.seg.length + '</td></tr>';
+  });
+  tb.innerHTML = rows.join("");
+  const avg = sum / arr.length;
+  $("#ckN").textContent = arr.length;
+  $("#ckMax").innerHTML = fmt(maxD, 2) + "<small>m</small>";
+  $("#ckAvg").innerHTML = fmt(avg, 2) + "<small>m</small>";
+  const v = $("#ckVerdict");
+  if (maxD <= 1) { v.textContent = "通过"; v.className = "v accent"; }
+  else if (maxD <= 3) { v.textContent = "可接受"; v.className = "v warn"; }
+  else { v.textContent = "偏离过大"; v.className = "v"; v.style.color = "var(--rose)"; }
+  if (maxD <= 3) v.style.color = "";
+  $("#ckMax").className = "v " + (maxD <= 1 ? "accent" : "warn");
+  // 顺带把点画到沙盘上
+  drawCheckMarkers(arr);
+});
+$("#btnCheckClear").addEventListener("click", () => {
+  $("#taCheck").value = "";
+  $("#ckTable").querySelector("tbody").innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--dim2)">等待输入</td></tr>';
+  ["ckN", "ckMax", "ckAvg"].forEach((k) => ($("#" + k).textContent = "—"));
+  $("#ckVerdict").textContent = "—";
+  checkMarks = [];
+  draw();
+});
+$("#taCheck").addEventListener("input", () => {
+  const n = parseCoords($("#taCheck").value).length;
+  $("#checkCount").textContent = n ? "已识别 " + n + " 组坐标" : "";
+});
+
+let checkMarks = [];
+function drawCheckMarkers(arr) {
+  if (!state.route) return;
+  checkMarks = arr.map((p) => state.route.prj.toXY(p.lat, p.lon));
+  draw();
+}
+
+/* =====================================================================
+   坐标转换
+   ===================================================================== */
+$("#btnGeo").addEventListener("click", () => {
+  const lat = parseFloat($("#geLat").value), lon = parseFloat($("#geLon").value);
+  if (!isFinite(lat) || !isFinite(lon)) { $("#geOutLat").textContent = "输入无效"; return; }
+  const dir = $("#geDir").value;
+  const r = dir === "g2w" ? gcj2wgs(lat, lon) : wgs2gcj(lat, lon);
+  $("#geOutLat").textContent = fmt(r[0], 7);
+  $("#geOutLon").textContent = fmt(r[1], 7);
+  $("#geDLat").textContent = (r[0] - lat >= 0 ? "+" : "") + (r[0] - lat).toFixed(6);
+  $("#geDLon").textContent = (r[1] - lon >= 0 ? "+" : "") + (r[1] - lon).toFixed(6);
+  const prj = makeProjector(lat, lon);
+  const a = prj.toXY(lat, lon), b = prj.toXY(r[0], r[1]);
+  const d = Math.hypot(b.x - a.x, b.y - a.y);
+  $("#geDist").innerHTML = fmt(d, 1) + " <small>m</small>";
+});
+$("#btnGeoSelf").addEventListener("click", () => {
+  const m = state.route.meta;
+  if (!m) return;
+  $("#geLat").value = m.centerLat;
+  $("#geLon").value = m.centerLon;
+  $("#geDir").value = "g2w";
+  $("#btnGeo").click();
+});
+
+/* =====================================================================
+   标签页
+   ===================================================================== */
+function activateTab(name) {
+  document.querySelectorAll("nav.tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === name));
+  document.querySelectorAll(".pane").forEach((p) => p.classList.toggle("on", p.id === "pane-" + name));
+  if (name === "map") { resize(); fitView(); }
+  try { history.replaceState(null, "", "#" + name); } catch (e) { /* file:// 下忽略 */ }
+}
+document.querySelectorAll("nav.tabs button").forEach((b) => {
+  b.addEventListener("click", () => activateTab(b.dataset.tab));
+});
+
+/* =====================================================================
+   键盘
+   ===================================================================== */
+document.addEventListener("keydown", (e) => {
+  if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if (e.code === "Space") { e.preventDefault(); setRunning(!state.running); }
+  if (e.key === "r" || e.key === "R") resetRun();
+  if (e.key === "f" || e.key === "F") fitView();
+});
+
+/* =====================================================================
+   启动
+   ===================================================================== */
+window.addEventListener("resize", () => { clearTimeout(window.__rt); window.__rt = setTimeout(resize, 120); });
+$("#footNote").textContent = "路线标定：高德卫星瓦片 z18 · 2026-10";
+// 注意顺序：先按真实布局尺寸初始化画布，再由 loadRoute 计算适应视图的缩放
+resize();
+loadRoute("jiading");
+resize();
+// 深链接：#check / #geo / #map（也支持 ?tab=check）
+const wantTab = (location.hash || "").replace(/^#/, "") || new URLSearchParams(location.search).get("tab");
+if (wantTab && document.getElementById("pane-" + wantTab)) activateTab(wantTab);
+$("#btnGeo").click();   // 坐标转换给个默认结果
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
