@@ -66,6 +66,31 @@ nav.tabs button.on{background:var(--card2);border-color:var(--line2);color:var(-
 .dot-live.pulse{animation:pulse 1.9s infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(63,224,192,.14)}50%{box-shadow:0 0 0 8px rgba(63,224,192,0)}}
 
+/* ---------- 下载真面板 ---------- */
+a.dl{
+  display:inline-flex;align-items:center;gap:7px;text-decoration:none;
+  background:linear-gradient(180deg,#37D6B8,#22B79D);border:1px solid #2BC0A5;
+  color:#05231D;font-weight:700;font-size:12.5px;letter-spacing:.02em;
+  border-radius:10px;padding:8px 14px;white-space:nowrap;transition:.16s;
+}
+a.dl:hover{filter:brightness(1.07);transform:translateY(-1px)}
+a.dl svg{width:14px;height:14px;flex:none}
+a.dl small{font-weight:600;opacity:.72;font-size:10.5px;font-family:var(--mono)}
+
+/* 说明条：本页只是沙盘 */
+.lab-note{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:9px 20px;border-bottom:1px solid var(--line);
+  background:linear-gradient(90deg,rgba(255,194,75,.10),rgba(255,194,75,.02));
+  font-size:12.5px;color:var(--ink2);
+}
+.lab-note b{color:var(--amber);font-weight:700}
+.lab-note .sep{color:var(--dim2)}
+.lab-note a{color:var(--mint);text-decoration:none;border-bottom:1px dotted rgba(63,224,192,.5)}
+.lab-note a:hover{border-bottom-style:solid}
+.lab-note button{margin-left:auto;padding:3px 9px;font-size:11.5px;border-radius:8px;background:transparent;color:var(--dim)}
+.lab-note.hide{display:none}
+
 /* ---------- 主体 ---------- */
 main{flex:1;min-height:0;display:flex}
 .pane{display:none;width:100%;min-height:0}
@@ -185,11 +210,23 @@ footer a:hover{color:var(--mint)}
     <button data-tab="check">位置反算</button>
     <button data-tab="geo">坐标转换</button>
   </nav>
+  <a class="dl" id="dlPanel" href="https://github.com/kevin0521-wjw/shu-location-lab/releases/latest/download/SHUAutoRun-PublicPanel-v1.0.0-win64.exe" title="下载公网面板启动器（Windows 单文件 33.8 MB）">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7"/><path d="M5 7l3 3 3-3"/><path d="M2.5 12.5h11"/></svg>
+    下载真面板<small>win64</small>
+  </a>
   <div class="top-meta">
     <span><span class="dot-live pulse" id="liveDot"></span><span id="liveTxt">STANDBY</span></span>
     <span id="topRoute">—</span>
   </div>
 </header>
+
+<div class="lab-note" id="labNote">
+  <span><b>注意</b> 本页是纯静态沙盘，<b>改不了真实定位</b>。</span>
+  <span class="sep">·</span>
+  <span>要真的控制路线，需在电脑上运行 <b>SHUAutoRun</b> 并下载启动器 →</span>
+  <a href="https://github.com/kevin0521-wjw/shu-location-lab/releases/tag/v1.0.0" target="_blank" rel="noopener">Release 说明</a>
+  <button id="noteClose" title="关闭">我知道了 ✕</button>
+</div>
 
 <main>
   <!-- ============ 轨迹沙盘 ============ -->
@@ -1130,6 +1167,20 @@ function activateTab(name) {
 document.querySelectorAll("nav.tabs button").forEach((b) => {
   b.addEventListener("click", () => activateTab(b.dataset.tab));
 });
+
+/* 说明条：关闭后记住，别再烦人 */
+(function () {
+  const bar = document.getElementById("labNote");
+  const btn = document.getElementById("noteClose");
+  if (!bar || !btn) return;
+  let closed = false;
+  try { closed = localStorage.getItem("labNoteClosed") === "1"; } catch (e) { /* 隐私模式忽略 */ }
+  if (closed) bar.classList.add("hide");
+  btn.addEventListener("click", () => {
+    bar.classList.add("hide");
+    try { localStorage.setItem("labNoteClosed", "1"); } catch (e) { /* 忽略 */ }
+  });
+})();
 
 /* =====================================================================
    键盘
